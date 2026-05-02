@@ -4,15 +4,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Git workflow
 
-After every change, commit and push:
+**Commit and push after every meaningful change** — no work should remain local. This ensures the project is never lost and any state can be reverted.
+
+Rules:
+- Commit after each logical unit of work (feature added, bug fixed, file created)
+- Never batch unrelated changes into one commit
+- Push to `origin main` immediately after every commit
+- Use clear, specific commit messages describing what changed and why
+
 ```bash
 git add <files>
-git commit -m "descriptive message"
+git commit -m "short description of what and why"
 git push origin main
 ```
 
-GitHub repo: `git@github.com:chenluxun54-cyber/tic-tac-toe.git`  
-SSH auth is configured via `~/.ssh/github_key`.
+GitHub repo: `https://github.com/chenluxun54-cyber/tic-tac-toe`  
+Remote is configured for HTTPS with token auth.
 
 ## Running the project
 
