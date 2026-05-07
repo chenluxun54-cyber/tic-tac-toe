@@ -5,141 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>3D 地球仪</title>
 
-  <!--
-    CESIUM_BASE_URL 必须在加载 Cesium.js 之前设置，否则 Workers 无法找到资源。
-    这是之前黑屏的根本原因之一。
-  -->
-  <script>
-    window.CESIUM_BASE_URL = 'https://cdn.jsdelivr.net/npm/cesium@1.120.0/Build/Cesium/';
-  </script>
-
-  <!-- CDN 使用 jsdelivr（cesium.com/downloads 已 404） -->
-  <script src="https://cdn.jsdelivr.net/npm/cesium@1.120.0/Build/Cesium/Cesium.js"></script>
-  <link href="https://cdn.jsdelivr.net/npm/cesium@1.120.0/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
-
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #06070d; }
-    #cesiumContainer { width: 100%; height: 100%; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+    #globe { width: 100%; height: 100%; }
 
-    .cesium-credit-logoContainer { display: none !important; }
-
-    /* ── Token 输入覆盖层 ── */
-    #token-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(6, 7, 20, 0.97);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 200;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      color: rgba(255,255,255,0.85);
-      text-align: center;
-      padding: 32px;
-      gap: 0;
-    }
-
-    #token-overlay h2 {
-      font-size: 20px;
-      font-weight: 600;
-      margin-bottom: 10px;
-    }
-
-    #token-overlay .steps {
-      font-size: 13.5px;
-      color: rgba(255,255,255,0.52);
-      line-height: 2;
-      margin-bottom: 24px;
-    }
-
-    #token-overlay a { color: #6aa8ff; text-decoration: none; }
-    #token-overlay a:hover { text-decoration: underline; }
-
-    #token-row {
-      display: flex;
-      gap: 8px;
-      width: 100%;
-      max-width: 500px;
-      margin-bottom: 12px;
-    }
-
-    #token-input {
-      flex: 1;
-      background: rgba(255,255,255,0.07);
-      border: 1px solid rgba(255,255,255,0.2);
-      border-radius: 8px;
-      color: #fff;
-      padding: 10px 14px;
-      font-size: 13px;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-
-    #token-input:focus { border-color: rgba(90,150,255,0.7); }
-
-    #token-submit {
-      background: rgba(30, 76, 200, 0.9);
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      padding: 10px 20px;
-      font-size: 13px;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: background 0.18s;
-    }
-
-    #token-submit:hover { background: rgba(45, 100, 240, 1); }
-
-    #skip-btn {
-      font-size: 12px;
-      color: rgba(255,255,255,0.35);
-      cursor: pointer;
-      background: none;
-      border: none;
-      text-decoration: underline;
-      margin-top: 4px;
-    }
-
-    #skip-btn:hover { color: rgba(255,255,255,0.6); }
-
-    /* ── 图层切换 ── */
-    #layer-panel {
-      position: fixed;
-      top: 16px;
-      right: 16px;
-      display: none;
-      flex-direction: column;
-      gap: 6px;
-      z-index: 10;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    }
-
-    #layer-panel button {
-      background: rgba(12, 14, 24, 0.88);
-      color: rgba(255,255,255,0.82);
-      border: 1px solid rgba(255,255,255,0.14);
-      border-radius: 8px;
-      padding: 7px 14px;
-      font-size: 12px;
-      cursor: pointer;
-      backdrop-filter: blur(8px);
-      transition: background 0.18s, border-color 0.18s;
-      letter-spacing: 0.3px;
-      text-align: left;
-      min-width: 116px;
-    }
-
-    #layer-panel button:hover  { background: rgba(35,82,195,0.52); border-color: rgba(90,150,255,0.5); }
-    #layer-panel button.active { background: rgba(30,76,200,0.78);  border-color: rgba(90,150,255,0.9); color:#fff; }
-
-    /* ── 操作提示 ── */
     #hint {
-      display: none;
       position: fixed;
-      bottom: 28px;
+      bottom: 24px;
       left: 50%;
       transform: translateX(-50%);
       color: rgba(255,255,255,0.4);
@@ -147,145 +20,139 @@
       letter-spacing: 0.8px;
       pointer-events: none;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: rgba(0,0,0,0.32);
+      background: rgba(0,0,0,0.35);
       padding: 5px 14px;
       border-radius: 20px;
     }
+
+    #loading {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      color: rgba(255,255,255,0.6);
+      font-size: 13px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      letter-spacing: 1.5px;
+      z-index: 10;
+      transition: opacity 0.8s;
+    }
+    #loading.fade { opacity: 0; pointer-events: none; }
+
+    .spinner {
+      width: 36px; height: 36px;
+      border: 2px solid rgba(255,255,255,0.1);
+      border-top-color: rgba(120,180,255,0.9);
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+      margin-bottom: 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
 
-  <div id="cesiumContainer"></div>
+  <div id="loading"><div class="spinner"></div>加载中…</div>
+  <div id="globe"></div>
+  <div id="hint">拖拽旋转 &nbsp;·&nbsp; 滚轮缩放</div>
 
-  <!-- Token 输入面板 -->
-  <div id="token-overlay">
-    <h2>🌍 Cesium Ion Token</h2>
-    <div class="steps">
-      1. 打开 <a href="https://ion.cesium.com" target="_blank">ion.cesium.com</a>，用邮箱免费注册（无需信用卡）<br>
-      2. 登录后在首页复制 <strong>Default Access Token</strong><br>
-      3. 粘贴到下方，享受卫星 + 3D 地形地球仪
-    </div>
-    <div id="token-row">
-      <input id="token-input" type="text" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." />
-      <button id="token-submit" onclick="startWithToken()">启动</button>
-    </div>
-    <button id="skip-btn" onclick="startWithOSM()">不填 token，使用 OpenStreetMap（无卫星图）</button>
-  </div>
-
-  <!-- 图层切换（ion token 模式） -->
-  <div id="layer-panel">
-    <button id="btn-aerial"   class="active" onclick="setLayer('aerial')"  >🛰 卫星图像</button>
-    <button id="btn-streets"                 onclick="setLayer('streets')" >🗺 街道地图</button>
-    <button id="btn-terrain"                 onclick="setLayer('terrain')" >🏔 卫星+地形</button>
-  </div>
-
-  <div id="hint">左键拖拽旋转 &nbsp;·&nbsp; 右键平移 &nbsp;·&nbsp; 中键/滚轮缩放 &nbsp;·&nbsp; 右键拖拽倾斜</div>
+  <!-- Globe.GL -->
+  <script src="https://unpkg.com/globe.gl@2.30.0/dist/globe.gl.min.js"></script>
+  <!-- TopoJSON 解析库（用于把压缩地图数据转成 GeoJSON） -->
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
 
   <script>
-    // ── 如已有 token，直接填在这里跳过输入框 ──
-    const SAVED_TOKEN = '';
-    // ─────────────────────────────────────────
-
-    if (SAVED_TOKEN) {
-      document.getElementById('token-overlay').style.display = 'none';
-      initMap(SAVED_TOKEN, true);
-    }
-
-    document.getElementById('token-input').addEventListener('keydown', e => {
-      if (e.key === 'Enter') startWithToken();
-    });
-
-    function startWithToken() {
-      const token = document.getElementById('token-input').value.trim();
-      if (!token) { alert('请输入 Token'); return; }
-      hideOverlay();
-      initMap(token, true);
-    }
-
-    function startWithOSM() {
-      hideOverlay();
-      initMap(null, false);
-    }
-
-    function hideOverlay() {
-      document.getElementById('token-overlay').style.display = 'none';
-      document.getElementById('layer-panel').style.display = 'flex';
-      document.getElementById('hint').style.display = 'block';
-    }
-
-    // ── 全局 viewer ──
-    let viewer = null;
-
-    function initMap(token, useIon) {
-      if (token) Cesium.Ion.defaultAccessToken = token;
-
-      const viewerOpts = {
-        baseLayerPicker      : false,
-        geocoder             : false,
-        homeButton           : false,
-        sceneModePicker      : false,
-        navigationHelpButton : false,
-        animation            : false,
-        timeline             : false,
-        fullscreenButton     : false,
-        infoBox              : false,
-        selectionIndicator   : false,
-      };
-
-      if (!useIon) {
-        // 无 token：用 OSM 瓦片，禁用 ion 默认底图
-        viewerOpts.baseLayer = false;
-        viewerOpts.terrainProvider = new Cesium.EllipsoidTerrainProvider();
-      }
-
-      viewer = new Cesium.Viewer('cesiumContainer', viewerOpts);
-
-      if (!useIon) {
-        // 手动加载 OSM 底图
-        viewer.imageryLayers.addImageryProvider(
-          new Cesium.UrlTemplateImageryProvider({
-            url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-            subdomains: ['a','b','c'],
-            tilingScheme: new Cesium.WebMercatorTilingScheme(),
-            credit: new Cesium.Credit('© OpenStreetMap contributors', true),
-          })
-        );
-        // ion 模式下隐藏图层面板
-        document.getElementById('layer-panel').style.display = 'none';
-      }
-
-      // 视觉设置
-      viewer.scene.skyAtmosphere.show = true;
-      viewer.scene.globe.showGroundAtmosphere = true;
-      viewer.scene.fog.enabled = true;
-      viewer.scene.globe.enableLighting = true;  // 昼夜光影
-
-      // 初始视角：从太空俯瞰亚洲
-      viewer.camera.flyTo({
-        destination: Cesium.Cartesian3.fromDegrees(110.0, 28.0, 20000000),
-        orientation: {
-          heading: Cesium.Math.toRadians(0),
-          pitch  : Cesium.Math.toRadians(-45),
-          roll   : 0,
-        },
-        duration: 2,
-      });
-    }
-
-    // ── 图层切换（仅 ion 模式） ──
-    const LAYERS = {
-      aerial  : () => Cesium.ImageryLayer.fromProviderAsync(Cesium.IonImageryProvider.fromAssetId(2)),       // Bing Maps Aerial
-      streets : () => Cesium.ImageryLayer.fromProviderAsync(Cesium.IonImageryProvider.fromAssetId(3)),       // Bing Maps Road
-      terrain : () => Cesium.ImageryLayer.fromProviderAsync(Cesium.IonImageryProvider.fromAssetId(3812)),    // Sentinel-2 (world imagery)
+    // ── ISO 数字代码 → 国家名（中英文主要国家） ──────────────────────────
+    const COUNTRY_NAMES = {
+      4:'阿富汗',8:'阿尔巴尼亚',12:'阿尔及利亚',24:'安哥拉',32:'阿根廷',
+      36:'澳大利亚',40:'奥地利',50:'孟加拉',56:'比利时',64:'不丹',
+      68:'玻利维亚',76:'巴西',100:'保加利亚',104:'缅甸',116:'柬埔寨',
+      120:'喀麦隆',124:'加拿大',152:'智利',156:'中国',170:'哥伦比亚',
+      178:'刚果',188:'哥斯达黎加',191:'克罗地亚',192:'古巴',203:'捷克',
+      208:'丹麦',218:'厄瓜多尔',818:'埃及',231:'埃塞俄比亚',246:'芬兰',
+      250:'法国',276:'德国',288:'加纳',300:'希腊',320:'危地马拉',
+      332:'海地',340:'洪都拉斯',356:'印度',360:'印度尼西亚',364:'伊朗',
+      368:'伊拉克',372:'爱尔兰',376:'以色列',380:'意大利',392:'日本',
+      400:'约旦',404:'肯尼亚',408:'朝鲜',410:'韩国',414:'科威特',
+      418:'老挝',422:'黎巴嫩',434:'利比亚',458:'马来西亚',484:'墨西哥',
+      504:'摩洛哥',516:'纳米比亚',524:'尼泊尔',528:'荷兰',554:'新西兰',
+      558:'尼加拉瓜',566:'尼日利亚',578:'挪威',586:'巴基斯坦',
+      604:'秘鲁',608:'菲律宾',616:'波兰',620:'葡萄牙',634:'卡塔尔',
+      642:'罗马尼亚',643:'俄罗斯',682:'沙特阿拉伯',706:'索马里',
+      710:'南非',724:'西班牙',752:'瑞典',756:'瑞士',760:'叙利亚',
+      764:'泰国',788:'突尼斯',792:'土耳其',800:'乌干达',804:'乌克兰',
+      784:'阿联酋',826:'英国',840:'美国',858:'乌拉圭',
+      862:'委内瑞拉',704:'越南',887:'也门',716:'津巴布韦',
+      262:'吉布提',266:'加蓬',324:'几内亚',480:'毛里求斯',508:'莫桑比克',
+      520:'瑙鲁',540:'新喀里多尼亚',598:'巴布亚新几内亚',
     };
 
-    function setLayer(name) {
-      if (!viewer) return;
-      viewer.imageryLayers.removeAll();
-      viewer.imageryLayers.add(LAYERS[name]());
-      document.querySelectorAll('#layer-panel button').forEach(b => b.classList.remove('active'));
-      document.getElementById('btn-' + name).classList.add('active');
-    }
+    // ── 初始化 Globe.GL ──────────────────────────────────────────────
+    const globe = Globe()
+      .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-day.jpg')
+      .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
+      .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
+      .showAtmosphere(true)
+      .atmosphereColor('lightskyblue')
+      .atmosphereAltitude(0.20)
+      // 国家边界线（数据加载后填充）
+      .polygonsData([])
+      .polygonCapColor(() => 'rgba(0,0,0,0)')          // 填充透明
+      .polygonSideColor(() => 'rgba(0,0,0,0)')
+      .polygonStrokeColor(() => 'rgba(255,255,255,0.45)')  // 白色边界线
+      .polygonAltitude(0.001)
+      // 悬停时显示国家名
+      .polygonLabel(feat => {
+        const id = parseInt(feat.id);
+        const name = COUNTRY_NAMES[id] || feat.id;
+        return `<div style="
+          background:rgba(0,0,0,0.7);
+          color:#fff;
+          padding:4px 10px;
+          border-radius:6px;
+          font-family:system-ui,sans-serif;
+          font-size:13px;
+          letter-spacing:0.5px;
+        ">${name}</div>`;
+      })
+      .onGlobeReady(() => {
+        document.getElementById('loading').classList.add('fade');
+      })
+      (document.getElementById('globe'));
+
+    // 初始视角（亚洲正上方）
+    globe.pointOfView({ lat: 28, lng: 110, altitude: 2.5 });
+
+    // 控制器
+    const ctrl = globe.controls();
+    ctrl.autoRotate      = true;
+    ctrl.autoRotateSpeed = 0.35;
+    ctrl.enableDamping   = true;
+    ctrl.dampingFactor   = 0.08;
+    ctrl.minDistance     = 101;
+    ctrl.maxDistance     = 700;
+
+    // 用户操作时停止自动旋转
+    ctrl.addEventListener('start', () => { ctrl.autoRotate = false; });
+
+    // ── 加载国家边界 GeoJSON（TopoJSON 格式，~500 KB） ──────────────
+    fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json')
+      .then(r => r.json())
+      .then(world => {
+        const geojson = topojson.feature(world, world.objects.countries);
+        globe.polygonsData(geojson.features);
+      })
+      .catch(() => {
+        // 静默失败：地球仪本身仍然正常显示，只是没有边界线
+      });
+
+    // 窗口大小变化
+    window.addEventListener('resize', () => {
+      globe.width(window.innerWidth).height(window.innerHeight);
+    });
   </script>
 </body>
 </html>
