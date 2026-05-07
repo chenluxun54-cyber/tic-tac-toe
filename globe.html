@@ -5,70 +5,64 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>3D 地球仪</title>
 
-  <script src="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.js"></script>
-  <link href="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.css" rel="stylesheet">
+  <!--
+    CESIUM_BASE_URL 必须在加载 Cesium.js 之前设置，否则 Workers 无法找到资源。
+    这是之前黑屏的根本原因之一。
+  -->
+  <script>
+    window.CESIUM_BASE_URL = 'https://cdn.jsdelivr.net/npm/cesium@1.120.0/Build/Cesium/';
+  </script>
+
+  <!-- CDN 使用 jsdelivr（cesium.com/downloads 已 404） -->
+  <script src="https://cdn.jsdelivr.net/npm/cesium@1.120.0/Build/Cesium/Cesium.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/cesium@1.120.0/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
 
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #06070d; }
-    #map { width: 100%; height: 100%; }
+    #cesiumContainer { width: 100%; height: 100%; }
 
-    /* 图层切换面板 */
-    #layer-panel {
-      position: fixed;
-      top: 16px;
-      right: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      z-index: 10;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    }
+    .cesium-credit-logoContainer { display: none !important; }
 
-    #layer-panel button {
-      background: rgba(12, 14, 24, 0.88);
-      color: rgba(255, 255, 255, 0.82);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      border-radius: 8px;
-      padding: 7px 14px;
-      font-size: 12px;
-      cursor: pointer;
-      backdrop-filter: blur(8px);
-      transition: background 0.18s, border-color 0.18s;
-      letter-spacing: 0.3px;
-      text-align: left;
-      min-width: 110px;
-    }
-
-    #layer-panel button:hover  { background: rgba(35, 82, 195, 0.52); border-color: rgba(90,150,255,0.5); }
-    #layer-panel button.active { background: rgba(30, 76, 200, 0.78); border-color: rgba(90,150,255,0.9); color: #fff; }
-
-    /* Token 未设置时的提示覆盖层 */
+    /* ── Token 输入覆盖层 ── */
     #token-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(6, 7, 20, 0.96);
+      background: rgba(6, 7, 20, 0.97);
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      z-index: 100;
+      z-index: 200;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       color: rgba(255,255,255,0.85);
       text-align: center;
       padding: 32px;
+      gap: 0;
     }
 
-    #token-overlay h2 { font-size: 20px; margin-bottom: 12px; font-weight: 600; }
-    #token-overlay p  { font-size: 14px; color: rgba(255,255,255,0.55); line-height: 1.7; max-width: 440px; }
-    #token-overlay a  { color: #6aa8ff; }
+    #token-overlay h2 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
 
-    #token-input-row {
+    #token-overlay .steps {
+      font-size: 13.5px;
+      color: rgba(255,255,255,0.52);
+      line-height: 2;
+      margin-bottom: 24px;
+    }
+
+    #token-overlay a { color: #6aa8ff; text-decoration: none; }
+    #token-overlay a:hover { text-decoration: underline; }
+
+    #token-row {
       display: flex;
       gap: 8px;
-      margin-top: 24px;
       width: 100%;
-      max-width: 480px;
+      max-width: 500px;
+      margin-bottom: 12px;
     }
 
     #token-input {
@@ -77,27 +71,73 @@
       border: 1px solid rgba(255,255,255,0.2);
       border-radius: 8px;
       color: #fff;
-      padding: 9px 13px;
+      padding: 10px 14px;
       font-size: 13px;
       outline: none;
+      transition: border-color 0.2s;
     }
 
     #token-input:focus { border-color: rgba(90,150,255,0.7); }
 
     #token-submit {
-      background: rgba(30, 76, 200, 0.85);
+      background: rgba(30, 76, 200, 0.9);
       color: #fff;
       border: none;
       border-radius: 8px;
-      padding: 9px 18px;
+      padding: 10px 20px;
       font-size: 13px;
       cursor: pointer;
       white-space: nowrap;
+      transition: background 0.18s;
     }
 
-    #token-submit:hover { background: rgba(40, 100, 240, 0.95); }
+    #token-submit:hover { background: rgba(45, 100, 240, 1); }
 
+    #skip-btn {
+      font-size: 12px;
+      color: rgba(255,255,255,0.35);
+      cursor: pointer;
+      background: none;
+      border: none;
+      text-decoration: underline;
+      margin-top: 4px;
+    }
+
+    #skip-btn:hover { color: rgba(255,255,255,0.6); }
+
+    /* ── 图层切换 ── */
+    #layer-panel {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      z-index: 10;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    #layer-panel button {
+      background: rgba(12, 14, 24, 0.88);
+      color: rgba(255,255,255,0.82);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: 12px;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      transition: background 0.18s, border-color 0.18s;
+      letter-spacing: 0.3px;
+      text-align: left;
+      min-width: 116px;
+    }
+
+    #layer-panel button:hover  { background: rgba(35,82,195,0.52); border-color: rgba(90,150,255,0.5); }
+    #layer-panel button.active { background: rgba(30,76,200,0.78);  border-color: rgba(90,150,255,0.9); color:#fff; }
+
+    /* ── 操作提示 ── */
     #hint {
+      display: none;
       position: fixed;
       bottom: 28px;
       left: 50%;
@@ -111,119 +151,140 @@
       padding: 5px 14px;
       border-radius: 20px;
     }
-
-    .mapboxgl-ctrl-logo { display: none !important; }
-    .mapboxgl-ctrl-group {
-      background: rgba(12,14,24,0.88) !important;
-      border: 1px solid rgba(255,255,255,0.12) !important;
-    }
-    .mapboxgl-ctrl-group button { background-color: transparent !important; }
-    .mapboxgl-ctrl-icon { filter: invert(1); }
   </style>
 </head>
 <body>
 
-  <div id="map"></div>
+  <div id="cesiumContainer"></div>
 
-  <!-- Token 未填写时显示的输入框 -->
+  <!-- Token 输入面板 -->
   <div id="token-overlay">
-    <h2>🔑 需要 Mapbox Access Token</h2>
-    <p>
-      前往 <a href="https://www.mapbox.com" target="_blank">mapbox.com</a> 免费注册，<br>
-      在 <a href="https://account.mapbox.com" target="_blank">account.mapbox.com</a> 复制 Default public token（<code>pk.</code> 开头），<br>
-      粘贴到下方即可使用。每月 5 万次免费，不会自动扣费。
-    </p>
-    <div id="token-input-row">
-      <input id="token-input" type="text" placeholder="pk.eyJ1Ijoixxxxxx..." />
-      <button id="token-submit" onclick="applyToken()">启动地球仪</button>
+    <h2>🌍 Cesium Ion Token</h2>
+    <div class="steps">
+      1. 打开 <a href="https://ion.cesium.com" target="_blank">ion.cesium.com</a>，用邮箱免费注册（无需信用卡）<br>
+      2. 登录后在首页复制 <strong>Default Access Token</strong><br>
+      3. 粘贴到下方，享受卫星 + 3D 地形地球仪
     </div>
+    <div id="token-row">
+      <input id="token-input" type="text" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." />
+      <button id="token-submit" onclick="startWithToken()">启动</button>
+    </div>
+    <button id="skip-btn" onclick="startWithOSM()">不填 token，使用 OpenStreetMap（无卫星图）</button>
   </div>
 
-  <div id="layer-panel" style="display:none">
-    <button id="btn-streets"          class="active" onclick="setStyle('streets-v12')"         >🗺 街道地图</button>
-    <button id="btn-satellite-streets"               onclick="setStyle('satellite-streets-v12')">🛰 卫星+标注</button>
-    <button id="btn-satellite"                       onclick="setStyle('satellite-v9')"         >🌍 纯卫星</button>
-    <button id="btn-outdoors"                        onclick="setStyle('outdoors-v12')"         >🏔 地形户外</button>
+  <!-- 图层切换（ion token 模式） -->
+  <div id="layer-panel">
+    <button id="btn-aerial"   class="active" onclick="setLayer('aerial')"  >🛰 卫星图像</button>
+    <button id="btn-streets"                 onclick="setLayer('streets')" >🗺 街道地图</button>
+    <button id="btn-terrain"                 onclick="setLayer('terrain')" >🏔 卫星+地形</button>
   </div>
 
-  <div id="hint" style="display:none">拖拽旋转 &nbsp;·&nbsp; 滚轮缩放 &nbsp;·&nbsp; Ctrl+拖拽倾斜视角</div>
+  <div id="hint">左键拖拽旋转 &nbsp;·&nbsp; 右键平移 &nbsp;·&nbsp; 中键/滚轮缩放 &nbsp;·&nbsp; 右键拖拽倾斜</div>
 
   <script>
-    // ── 已有 token 直接写在这里（可选） ──────────────────────────────
-    const SAVED_TOKEN = '';   // 例：'pk.eyJ1Ijoixxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-    // ─────────────────────────────────────────────────────────────────
+    // ── 如已有 token，直接填在这里跳过输入框 ──
+    const SAVED_TOKEN = '';
+    // ─────────────────────────────────────────
 
-    let map = null;
-
-    // 如果已填写 token，跳过输入框直接启动
-    if (SAVED_TOKEN.startsWith('pk.')) {
+    if (SAVED_TOKEN) {
       document.getElementById('token-overlay').style.display = 'none';
-      initMap(SAVED_TOKEN);
+      initMap(SAVED_TOKEN, true);
     }
 
-    function applyToken() {
-      const token = document.getElementById('token-input').value.trim();
-      if (!token.startsWith('pk.')) {
-        alert('Token 格式不正确，应以 pk. 开头');
-        return;
-      }
-      document.getElementById('token-overlay').style.display = 'none';
-      initMap(token);
-    }
-
-    // 支持回车提交
     document.getElementById('token-input').addEventListener('keydown', e => {
-      if (e.key === 'Enter') applyToken();
+      if (e.key === 'Enter') startWithToken();
     });
 
-    function initMap(token) {
-      mapboxgl.accessToken = token;
+    function startWithToken() {
+      const token = document.getElementById('token-input').value.trim();
+      if (!token) { alert('请输入 Token'); return; }
+      hideOverlay();
+      initMap(token, true);
+    }
 
-      map = new mapboxgl.Map({
-        container : 'map',
-        style     : 'mapbox://styles/mapbox/streets-v12',
-        center    : [110, 28],
-        zoom      : 2,
-        projection: 'globe',
-        antialias : true,
-      });
+    function startWithOSM() {
+      hideOverlay();
+      initMap(null, false);
+    }
 
-      // 大气层 + 星空（地球仪专属效果）
-      map.on('style.load', applyFog);
-
-      // 导航控件
-      map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'bottom-right');
-
-      // 显示 UI
+    function hideOverlay() {
+      document.getElementById('token-overlay').style.display = 'none';
       document.getElementById('layer-panel').style.display = 'flex';
       document.getElementById('hint').style.display = 'block';
     }
 
-    function applyFog() {
-      map.setFog({
-        color           : 'rgb(186, 210, 235)',
-        'high-color'    : 'rgb(36, 92, 223)',
-        'horizon-blend' : 0.02,
-        'space-color'   : 'rgb(6, 7, 20)',
-        'star-intensity': 0.65,
+    // ── 全局 viewer ──
+    let viewer = null;
+
+    function initMap(token, useIon) {
+      if (token) Cesium.Ion.defaultAccessToken = token;
+
+      const viewerOpts = {
+        baseLayerPicker      : false,
+        geocoder             : false,
+        homeButton           : false,
+        sceneModePicker      : false,
+        navigationHelpButton : false,
+        animation            : false,
+        timeline             : false,
+        fullscreenButton     : false,
+        infoBox              : false,
+        selectionIndicator   : false,
+      };
+
+      if (!useIon) {
+        // 无 token：用 OSM 瓦片，禁用 ion 默认底图
+        viewerOpts.baseLayer = false;
+        viewerOpts.terrainProvider = new Cesium.EllipsoidTerrainProvider();
+      }
+
+      viewer = new Cesium.Viewer('cesiumContainer', viewerOpts);
+
+      if (!useIon) {
+        // 手动加载 OSM 底图
+        viewer.imageryLayers.addImageryProvider(
+          new Cesium.UrlTemplateImageryProvider({
+            url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            subdomains: ['a','b','c'],
+            tilingScheme: new Cesium.WebMercatorTilingScheme(),
+            credit: new Cesium.Credit('© OpenStreetMap contributors', true),
+          })
+        );
+        // ion 模式下隐藏图层面板
+        document.getElementById('layer-panel').style.display = 'none';
+      }
+
+      // 视觉设置
+      viewer.scene.skyAtmosphere.show = true;
+      viewer.scene.globe.showGroundAtmosphere = true;
+      viewer.scene.fog.enabled = true;
+      viewer.scene.globe.enableLighting = true;  // 昼夜光影
+
+      // 初始视角：从太空俯瞰亚洲
+      viewer.camera.flyTo({
+        destination: Cesium.Cartesian3.fromDegrees(110.0, 28.0, 20000000),
+        orientation: {
+          heading: Cesium.Math.toRadians(0),
+          pitch  : Cesium.Math.toRadians(-45),
+          roll   : 0,
+        },
+        duration: 2,
       });
     }
 
-    // ── 图层切换 ──
-    const STYLE_BTNS = {
-      'streets-v12'          : 'btn-streets',
-      'satellite-streets-v12': 'btn-satellite-streets',
-      'satellite-v9'         : 'btn-satellite',
-      'outdoors-v12'         : 'btn-outdoors',
+    // ── 图层切换（仅 ion 模式） ──
+    const LAYERS = {
+      aerial  : () => Cesium.ImageryLayer.fromProviderAsync(Cesium.IonImageryProvider.fromAssetId(2)),       // Bing Maps Aerial
+      streets : () => Cesium.ImageryLayer.fromProviderAsync(Cesium.IonImageryProvider.fromAssetId(3)),       // Bing Maps Road
+      terrain : () => Cesium.ImageryLayer.fromProviderAsync(Cesium.IonImageryProvider.fromAssetId(3812)),    // Sentinel-2 (world imagery)
     };
 
-    function setStyle(styleId) {
-      if (!map) return;
-      map.setStyle('mapbox://styles/mapbox/' + styleId);
-      map.once('style.load', applyFog);
-      Object.entries(STYLE_BTNS).forEach(([id, btnId]) => {
-        document.getElementById(btnId).classList.toggle('active', id === styleId);
-      });
+    function setLayer(name) {
+      if (!viewer) return;
+      viewer.imageryLayers.removeAll();
+      viewer.imageryLayers.add(LAYERS[name]());
+      document.querySelectorAll('#layer-panel button').forEach(b => b.classList.remove('active'));
+      document.getElementById('btn-' + name).classList.add('active');
     }
   </script>
 </body>
