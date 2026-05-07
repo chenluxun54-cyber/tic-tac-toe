@@ -5,42 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>3D 地球仪</title>
 
-  <!-- CesiumJS -->
-  <script src="https://cesium.com/downloads/cesiumjs/releases/1.120.0/Build/Cesium/Cesium.js"></script>
-  <link href="https://cesium.com/downloads/cesiumjs/releases/1.120.0/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+  <!-- CesiumJS via jsdelivr (cesium.com CDN 已停用) -->
+  <script src="https://cdn.jsdelivr.net/npm/cesium@1.120.0/Build/Cesium/Cesium.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/cesium@1.120.0/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
 
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+    #cesiumContainer { width: 100%; height: 100%; }
 
-    html, body, #cesiumContainer {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: #000;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    }
-
-    /* 隐藏 Cesium ion 水印（未使用 ion 服务）；保留 OSM 版权文字 */
+    /* 隐藏 Cesium ion 水印（未使用 ion 服务） */
     .cesium-credit-logoContainer { display: none !important; }
 
-    /* 底部操作提示 */
-    #hint {
-      position: fixed;
-      bottom: 30px;
-      left: 50%;
-      transform: translateX(-50%);
-      color: rgba(255, 255, 255, 0.45);
-      font-size: 12px;
-      letter-spacing: 0.8px;
-      pointer-events: none;
-      user-select: none;
-      background: rgba(0, 0, 0, 0.35);
-      padding: 5px 14px;
-      border-radius: 20px;
-      backdrop-filter: blur(4px);
-    }
-
-    /* 地图图层切换按钮 */
     #layer-switcher {
       position: fixed;
       top: 16px;
@@ -49,11 +25,12 @@
       flex-direction: column;
       gap: 6px;
       z-index: 100;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     }
 
     #layer-switcher button {
-      background: rgba(20, 20, 30, 0.85);
-      color: rgba(255, 255, 255, 0.8);
+      background: rgba(15, 15, 25, 0.88);
+      color: rgba(255, 255, 255, 0.82);
       border: 1px solid rgba(255, 255, 255, 0.15);
       border-radius: 8px;
       padding: 7px 14px;
@@ -61,19 +38,34 @@
       cursor: pointer;
       backdrop-filter: blur(6px);
       transition: background 0.2s, border-color 0.2s;
-      text-align: left;
       letter-spacing: 0.3px;
     }
 
     #layer-switcher button:hover {
-      background: rgba(50, 100, 200, 0.5);
+      background: rgba(40, 90, 200, 0.5);
       border-color: rgba(100, 160, 255, 0.5);
     }
 
     #layer-switcher button.active {
-      background: rgba(40, 90, 200, 0.7);
-      border-color: rgba(100, 160, 255, 0.8);
+      background: rgba(35, 85, 200, 0.75);
+      border-color: rgba(100, 160, 255, 0.85);
       color: #fff;
+    }
+
+    #hint {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255, 255, 255, 0.45);
+      font-size: 12px;
+      letter-spacing: 0.8px;
+      pointer-events: none;
+      user-select: none;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 5px 14px;
+      border-radius: 20px;
     }
   </style>
 </head>
@@ -81,59 +73,21 @@
 
   <div id="cesiumContainer"></div>
 
-  <!-- 图层切换 -->
   <div id="layer-switcher">
-    <button id="btn-street" class="active" onclick="switchLayer('street')">🗺 街道地图</button>
-    <button id="btn-satellite" onclick="switchLayer('satellite')">🛰 卫星图像</button>
-    <button id="btn-topo" onclick="switchLayer('topo')">🏔 地形图</button>
+    <button id="btn-street"    class="active" onclick="switchLayer('street')"   >🗺 街道地图</button>
+    <button id="btn-satellite"                onclick="switchLayer('satellite')" >🛰 卫星图像</button>
+    <button id="btn-topo"                     onclick="switchLayer('topo')"      >🏔 地形图</button>
   </div>
 
   <div id="hint">左键拖拽旋转 &nbsp;·&nbsp; 右键平移 &nbsp;·&nbsp; 滚轮缩放</div>
 
   <script>
-    // ── 如需去除右下角 Cesium 水印：在 ion.cesium.com 免费注册，替换下方 token ──
-    // Cesium.Ion.defaultAccessToken = 'YOUR_FREE_TOKEN_HERE';
+    // 告诉 CesiumJS 从哪里加载 Workers 和静态资源
+    window.CESIUM_BASE_URL = 'https://cdn.jsdelivr.net/npm/cesium@1.120.0/Build/Cesium/';
 
-    // ── 瓦片图层定义（无需 API Key） ──
-    const LAYERS = {
-      street: new Cesium.UrlTemplateImageryProvider({
-        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        subdomains: ['a', 'b', 'c'],
-        tilingScheme: new Cesium.WebMercatorTilingScheme(),
-        minimumLevel: 0,
-        maximumLevel: 19,
-        credit: new Cesium.Credit(
-          '© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors',
-          true
-        )
-      }),
-
-      satellite: new Cesium.UrlTemplateImageryProvider({
-        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        tilingScheme: new Cesium.WebMercatorTilingScheme(),
-        minimumLevel: 0,
-        maximumLevel: 19,
-        credit: new Cesium.Credit(
-          'Tiles © <a href="https://www.esri.com" target="_blank">Esri</a>',
-          true
-        )
-      }),
-
-      topo: new Cesium.UrlTemplateImageryProvider({
-        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
-        tilingScheme: new Cesium.WebMercatorTilingScheme(),
-        minimumLevel: 0,
-        maximumLevel: 19,
-        credit: new Cesium.Credit(
-          'Tiles © <a href="https://www.esri.com" target="_blank">Esri</a>',
-          true
-        )
-      }),
-    };
-
-    // ── 初始化 Viewer，使用街道图层作为默认 ──
+    // baseLayer: false → 不加载任何 ion 默认底图，无需 token
     const viewer = new Cesium.Viewer('cesiumContainer', {
-      imageryProvider      : LAYERS.street,
+      baseLayer            : false,
       baseLayerPicker      : false,
       geocoder             : false,
       homeButton           : false,
@@ -146,22 +100,61 @@
       selectionIndicator   : false,
     });
 
+    // 视觉设置
+    viewer.scene.skyAtmosphere.show = true;
+    viewer.scene.fog.enabled = true;
+    viewer.scene.globe.showGroundAtmosphere = true;
+    viewer.scene.globe.enableLighting = false;
+
     // 初始视角：亚洲上方
     viewer.camera.setView({
       destination: Cesium.Cartesian3.fromDegrees(110.0, 28.0, 18000000),
     });
 
-    // 大气层效果
-    viewer.scene.skyAtmosphere.show = true;
-    viewer.scene.fog.enabled = true;
-    viewer.scene.globe.showGroundAtmosphere = true;
-    viewer.scene.globe.enableLighting = false; // 关闭昼夜光影，保证全球可见
+    // ── 地图图层定义（均无需 API Key） ──
+    function makeStreet() {
+      return new Cesium.UrlTemplateImageryProvider({
+        url         : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        subdomains  : ['a', 'b', 'c'],
+        tilingScheme: new Cesium.WebMercatorTilingScheme(),
+        minimumLevel: 0,
+        maximumLevel: 19,
+        credit: new Cesium.Credit(
+          '© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors', true
+        )
+      });
+    }
 
-    // ── 图层切换逻辑 ──
+    function makeSatellite() {
+      return new Cesium.UrlTemplateImageryProvider({
+        // ESRI World Imagery — 卫星遥感，无需 API Key
+        url         : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        tilingScheme: new Cesium.WebMercatorTilingScheme(),
+        minimumLevel: 0,
+        maximumLevel: 19,
+        credit: new Cesium.Credit('Tiles © <a href="https://www.esri.com" target="_blank">Esri</a>', true)
+      });
+    }
+
+    function makeTopo() {
+      return new Cesium.UrlTemplateImageryProvider({
+        // ESRI World Topo Map — 含国家/地区/地形标注
+        url         : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+        tilingScheme: new Cesium.WebMercatorTilingScheme(),
+        minimumLevel: 0,
+        maximumLevel: 19,
+        credit: new Cesium.Credit('Tiles © <a href="https://www.esri.com" target="_blank">Esri</a>', true)
+      });
+    }
+
+    // 加载默认图层
+    viewer.imageryLayers.addImageryProvider(makeStreet());
+
+    // 图层切换
     function switchLayer(name) {
       viewer.imageryLayers.removeAll();
-      viewer.imageryLayers.addImageryProvider(LAYERS[name]);
-
+      const providers = { street: makeStreet, satellite: makeSatellite, topo: makeTopo };
+      viewer.imageryLayers.addImageryProvider(providers[name]());
       document.querySelectorAll('#layer-switcher button').forEach(btn => btn.classList.remove('active'));
       document.getElementById('btn-' + name).classList.add('active');
     }
