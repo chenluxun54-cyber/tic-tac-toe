@@ -4,116 +4,167 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>3D 地球仪</title>
-  <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
 
-    body {
-      background: #000;
+  <!-- CesiumJS -->
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.120.0/Build/Cesium/Cesium.js"></script>
+  <link href="https://cesium.com/downloads/cesiumjs/releases/1.120.0/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body, #cesiumContainer {
+      width: 100%;
+      height: 100%;
       overflow: hidden;
+      background: #000;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     }
 
-    #globe {
-      width: 100vw;
-      height: 100vh;
-    }
+    /* 隐藏 Cesium ion 水印（未使用 ion 服务）；保留 OSM 版权文字 */
+    .cesium-credit-logoContainer { display: none !important; }
 
+    /* 底部操作提示 */
     #hint {
       position: fixed;
-      bottom: 28px;
+      bottom: 30px;
       left: 50%;
       transform: translateX(-50%);
       color: rgba(255, 255, 255, 0.45);
-      font-size: 13px;
-      letter-spacing: 1px;
+      font-size: 12px;
+      letter-spacing: 0.8px;
       pointer-events: none;
       user-select: none;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 5px 14px;
+      border-radius: 20px;
+      backdrop-filter: blur(4px);
     }
 
-    #loading {
+    /* 地图图层切换按钮 */
+    #layer-switcher {
       position: fixed;
-      inset: 0;
+      top: 16px;
+      right: 16px;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      background: #000;
-      color: rgba(255, 255, 255, 0.7);
-      font-size: 14px;
-      letter-spacing: 2px;
-      z-index: 10;
-      transition: opacity 0.8s ease;
+      gap: 6px;
+      z-index: 100;
     }
 
-    #loading.hidden {
-      opacity: 0;
-      pointer-events: none;
+    #layer-switcher button {
+      background: rgba(20, 20, 30, 0.85);
+      color: rgba(255, 255, 255, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: 12px;
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+      transition: background 0.2s, border-color 0.2s;
+      text-align: left;
+      letter-spacing: 0.3px;
     }
 
-    .spinner {
-      width: 36px;
-      height: 36px;
-      border: 2px solid rgba(255, 255, 255, 0.15);
-      border-top-color: rgba(100, 180, 255, 0.8);
-      border-radius: 50%;
-      animation: spin 0.9s linear infinite;
-      margin-bottom: 16px;
+    #layer-switcher button:hover {
+      background: rgba(50, 100, 200, 0.5);
+      border-color: rgba(100, 160, 255, 0.5);
     }
 
-    @keyframes spin {
-      to { transform: rotate(360deg); }
+    #layer-switcher button.active {
+      background: rgba(40, 90, 200, 0.7);
+      border-color: rgba(100, 160, 255, 0.8);
+      color: #fff;
     }
   </style>
 </head>
 <body>
 
-  <div id="loading">
-    <div class="spinner"></div>
-    加载中…
+  <div id="cesiumContainer"></div>
+
+  <!-- 图层切换 -->
+  <div id="layer-switcher">
+    <button id="btn-street" class="active" onclick="switchLayer('street')">🗺 街道地图</button>
+    <button id="btn-satellite" onclick="switchLayer('satellite')">🛰 卫星图像</button>
+    <button id="btn-topo" onclick="switchLayer('topo')">🏔 地形图</button>
   </div>
 
-  <div id="globe"></div>
-  <div id="hint">拖动旋转 &nbsp;·&nbsp; 滚轮缩放</div>
+  <div id="hint">左键拖拽旋转 &nbsp;·&nbsp; 右键平移 &nbsp;·&nbsp; 滚轮缩放</div>
 
-  <script src="https://unpkg.com/globe.gl@2.30.0/dist/globe.gl.min.js"></script>
   <script>
-    const globe = Globe()
-      .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-day.jpg')
-      .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
-      .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
-      .showAtmosphere(true)
-      .atmosphereColor('lightskyblue')
-      .atmosphereAltitude(0.22)
-      .onGlobeReady(() => {
-        document.getElementById('loading').classList.add('hidden');
-      })
-      (document.getElementById('globe'));
+    // ── 如需去除右下角 Cesium 水印：在 ion.cesium.com 免费注册，替换下方 token ──
+    // Cesium.Ion.defaultAccessToken = 'YOUR_FREE_TOKEN_HERE';
 
-    // 默认视角：亚洲上方
-    globe.pointOfView({ lat: 30, lng: 110, altitude: 2.5 });
+    // ── 瓦片图层定义（无需 API Key） ──
+    const LAYERS = {
+      street: new Cesium.UrlTemplateImageryProvider({
+        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        subdomains: ['a', 'b', 'c'],
+        tilingScheme: new Cesium.WebMercatorTilingScheme(),
+        minimumLevel: 0,
+        maximumLevel: 19,
+        credit: new Cesium.Credit(
+          '© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors',
+          true
+        )
+      }),
 
-    // 控制器设置
-    const controls = globe.controls();
-    controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.4;
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-    controls.minDistance = 101;
-    controls.maxDistance = 800;
+      satellite: new Cesium.UrlTemplateImageryProvider({
+        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        tilingScheme: new Cesium.WebMercatorTilingScheme(),
+        minimumLevel: 0,
+        maximumLevel: 19,
+        credit: new Cesium.Credit(
+          'Tiles © <a href="https://www.esri.com" target="_blank">Esri</a>',
+          true
+        )
+      }),
 
-    // 用户开始拖拽时停止自动旋转
-    controls.addEventListener('start', () => {
-      controls.autoRotate = false;
+      topo: new Cesium.UrlTemplateImageryProvider({
+        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+        tilingScheme: new Cesium.WebMercatorTilingScheme(),
+        minimumLevel: 0,
+        maximumLevel: 19,
+        credit: new Cesium.Credit(
+          'Tiles © <a href="https://www.esri.com" target="_blank">Esri</a>',
+          true
+        )
+      }),
+    };
+
+    // ── 初始化 Viewer，使用街道图层作为默认 ──
+    const viewer = new Cesium.Viewer('cesiumContainer', {
+      imageryProvider      : LAYERS.street,
+      baseLayerPicker      : false,
+      geocoder             : false,
+      homeButton           : false,
+      sceneModePicker      : false,
+      navigationHelpButton : false,
+      animation            : false,
+      timeline             : false,
+      fullscreenButton     : false,
+      infoBox              : false,
+      selectionIndicator   : false,
     });
 
-    // 窗口大小变化时自适应
-    window.addEventListener('resize', () => {
-      globe.width(window.innerWidth).height(window.innerHeight);
+    // 初始视角：亚洲上方
+    viewer.camera.setView({
+      destination: Cesium.Cartesian3.fromDegrees(110.0, 28.0, 18000000),
     });
+
+    // 大气层效果
+    viewer.scene.skyAtmosphere.show = true;
+    viewer.scene.fog.enabled = true;
+    viewer.scene.globe.showGroundAtmosphere = true;
+    viewer.scene.globe.enableLighting = false; // 关闭昼夜光影，保证全球可见
+
+    // ── 图层切换逻辑 ──
+    function switchLayer(name) {
+      viewer.imageryLayers.removeAll();
+      viewer.imageryLayers.addImageryProvider(LAYERS[name]);
+
+      document.querySelectorAll('#layer-switcher button').forEach(btn => btn.classList.remove('active'));
+      document.getElementById('btn-' + name).classList.add('active');
+    }
   </script>
 </body>
 </html>
