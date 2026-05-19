@@ -4,13 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Git workflow
 
-**Every project gets its own git repository and GitHub repo. Commit and push after every meaningful change — no work should remain local.**
+**Every project gets its own git repository and GitHub repo. As you do work, commit and push each completed step immediately — no work should ever remain local only.**
+
+This is a hard requirement: after every meaningful change, Claude must run `git add`, `git commit`, and `git push` before moving on. The goal is that the GitHub repo always reflects the current state of the work so nothing is ever lost.
 
 Rules:
 - For every new project: `git init`, then `gh repo create <name> --public --source=. --remote=origin --push`
-- Commit after each logical unit of work (feature added, bug fixed, file created)
+- Commit and push after each logical unit of work (feature added, bug fixed, file created, refactor done)
 - Never batch unrelated changes into one commit
-- Push to `origin main` immediately after every commit
+- Never finish a task without pushing — GitHub is the source of truth
 - Write clean, descriptive commit messages (what changed and why, not just "update")
 
 ```bash
