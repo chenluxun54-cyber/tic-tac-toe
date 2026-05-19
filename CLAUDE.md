@@ -29,43 +29,31 @@ Remote is configured for HTTPS with token auth.
 
 ## Running the project
 
-No build step. Open any HTML file directly in a browser:
+No build step. All dependencies are CDN-loaded. Open any HTML file directly in a browser:
+
 ```bash
 open tictactoe.html
 open globe.html
 ```
 
-## Files
+## Architecture
 
-### tictactoe.html — Tic-Tac-Toe game
+Both apps are **single-file** (HTML + CSS + JS in one file, no bundler, no npm).
 
-Single-file app; all HTML, CSS, and JS in one file.
+### tictactoe.html
 
-**Game state** (module-level vars):
-- `board` — `string[9]`, values `''`, `'X'`, or `'O'`
-- `current` — whose turn (`'X'` or `'O'`)
-- `gameOver` — boolean, blocks clicks after win/draw
-- `scores` — `{ X, O, draw }`, persists across restarts
+Module-level state: `board` (`string[9]`), `current` (`'X'`|`'O'`), `gameOver` (boolean), `scores` (`{X, O, draw}`).
 
-**Flow:** click on `#board` → update `board[i]` → `render()` → `checkWin()` → update status/scores. `init()` resets board but preserves scores.
+Flow: click on `#board` → `board[i] = current` → `render()` → `checkWin()` → update status/scores.
 
-`WINS` is a hardcoded array of the 8 winning index triples used by `checkWin()`.
+`scores` is initialized once at script load, then `init()` uses `scores = scores || ...` so scores survive restarts but reset on page reload. `WINS` is the 8 hardcoded winning index triples.
 
-### globe.html — Interactive 3D Globe
+### globe.html
 
-Single-file app using **Globe.GL** (v2.30.0) for WebGL rendering.
+CDN deps: `globe.gl@2.30.0` (Three.js wrapper), `topojson-client@3`.
 
-**Key dependencies (CDN):**
-- `globe.gl` — wraps Three.js for 3D earth rendering
-- `topojson-client` — decodes `world-atlas` TopoJSON into GeoJSON polygon features
+Data flow: `fetch` world-atlas `countries-50m.json` from jsDelivr → `topojson.feature()` → `globe.polygonsData()` renders white-stroke country borders over a transparent fill. Fetch failures are silently swallowed — the globe still renders without borders.
 
-**Data flow:** `fetch` world-atlas countries-50m.json → `topojson.feature()` → `globe.polygonsData()` renders country borders as white stroke polygons over a transparent fill.
+`COUNTRY_NAMES` maps ISO 3166-1 numeric codes → Chinese country names (hardcoded in script). Hover tooltip uses this map, falling back to the raw numeric ID.
 
-**Globe configuration:**
-- Texture: `earth-day.jpg` + `earth-topology.png` bump map (both from `three-globe` package on unpkg)
-- Background: `night-sky.png` (space look)
-- Country labels: hover tooltip using `COUNTRY_NAMES` map (ISO numeric → Chinese name)
-- Initial POV: lat 28, lng 110, altitude 2.5 (centered over Asia)
-- Auto-rotate stops on user interaction via `controls().addEventListener('start', ...)`
-
-`COUNTRY_NAMES` is a hardcoded ISO 3166-1 numeric → Chinese name lookup table in the script.
+Globe config: earth-day texture + topology bump map + night-sky background (all from unpkg `three-globe`). Initial POV: lat 28, lng 110, altitude 2.5 (centered over Asia). Auto-rotate at 0.35 speed; stops permanently on first user interaction via `controls().addEventListener('start', ...)`.
