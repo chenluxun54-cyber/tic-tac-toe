@@ -26,36 +26,78 @@ git commit -m "short description of what and why"
 git push origin main
 ```
 
-Current project GitHub repo: `https://github.com/chenluxun54-cyber/tic-tac-toe`  
-Remote is configured for HTTPS with token auth.
+GitHub repos:
+- `https://github.com/chenluxun54-cyber/tic-tac-toe` — tictactoe + globe
+- `https://github.com/chenluxun54-cyber/carbon-compliance-agent` — carbon agent (active project)
 
-## Running the project
+All remotes use HTTPS with token auth.
 
-No build step. All dependencies are CDN-loaded. Open any HTML file directly in a browser:
+## Running the projects
 
+### tictactoe / globe (no build step, CDN-loaded)
 ```bash
 open tictactoe.html
 open globe.html
 ```
 
+### carbon-compliance-agent (active project)
+```bash
+cd ~/Desktop/carbon_skill
+
+# Use Claude (default)
+export ANTHROPIC_API_KEY=sk-ant-...
+python3 -m uvicorn agent:app --reload --port 8000
+
+# Use MiniMax
+export MODEL_PROVIDER=minimax
+export MINIMAX_API_KEY=your-key
+python3 -m uvicorn agent:app --reload --port 8000
+```
+
+Open `http://localhost:8000` in browser (NOT the HTML file directly).
+
 ## Architecture
 
-Both apps are **single-file** (HTML + CSS + JS in one file, no bundler, no npm).
+### tictactoe.html / globe.html
 
-### tictactoe.html
+Single-file apps (HTML + CSS + JS, no bundler, no npm).
 
-Module-level state: `board` (`string[9]`), `current` (`'X'`|`'O'`), `gameOver` (boolean), `scores` (`{X, O, draw}`).
+**tictactoe.html** — `board` (`string[9]`), `current` (`'X'`|`'O'`), `gameOver`, `scores`. Click → `render()` → `checkWin()`. `WINS` = 8 hardcoded triples. Scores survive `init()` but reset on page reload.
 
-Flow: click on `#board` → `board[i] = current` → `render()` → `checkWin()` → update status/scores.
+**globe.html** — Globe.GL 2.30.0 + topojson-client@3. Fetches `world-atlas countries-50m.json` → white-stroke borders. `COUNTRY_NAMES` maps ISO numeric → Chinese names. POV: lat 28, lng 110, alt 2.5. Auto-rotates at 0.35, stops on first user interaction.
 
-`scores` is initialized once at script load, then `init()` uses `scores = scores || ...` so scores survive restarts but reset on page reload. `WINS` is the 8 hardcoded winning index triples.
+### carbon-compliance-agent (`~/Desktop/carbon_skill/`)
 
-### globe.html
+FastAPI backend + streaming SSE chat UI. Single-file architecture (no bundler).
 
-CDN deps: `globe.gl@2.30.0` (Three.js wrapper), `topojson-client@3`.
+**Files:**
+- `agent.py` — FastAPI app, agent loop, SSE streaming, provider switching
+- `data_loader.py` — loads `carbon_database.xlsx` (sheets: `company_data`, `industry_rankings`)
+- `scorer.py` — scores companies across 6 dimensions (total 100 pts)
+- `config.py` — dimension definitions, indicator weights, scoring rules
+- `index.html` — 4-tab dashboard UI (chat, company list, score breakdown, trend chart)
+- `generate_mock_data.py` — generates mock Excel data for COMP_001~COMP_010, year 2024
 
-Data flow: `fetch` world-atlas `countries-50m.json` from jsDelivr → `topojson.feature()` → `globe.polygonsData()` renders white-stroke country borders over a transparent fill. Fetch failures are silently swallowed — the globe still renders without borders.
+**Provider switching** — controlled by `MODEL_PROVIDER` env var:
+- `anthropic` (default): uses `anthropic.AsyncAnthropic`, model `claude-sonnet-4-6`
+- `minimax`: same Anthropic SDK, `base_url="https://api.minimaxi.com/anthropic"`, model `MiniMax-Text-01`
 
-`COUNTRY_NAMES` maps ISO 3166-1 numeric codes → Chinese country names (hardcoded in script). Hover tooltip uses this map, falling back to the raw numeric ID.
+**Tool:** `carbon_score(company_id, report_year)` — Anthropic tool-use format, works for both providers. Returns 6-dimension scores + industry percentile ranking.
 
-Globe config: earth-day texture + topology bump map + night-sky background (all from unpkg `three-globe`). Initial POV: lat 28, lng 110, altitude 2.5 (centered over Asia). Auto-rotate at 0.35 speed; stops permanently on first user interaction via `controls().addEventListener('start', ...)`.
+**API endpoints:**
+- `POST /chat` — SSE streaming chat
+- `POST /new_session` — create session
+- `GET /companies` — list all companies
+- `GET /score/{company_id}/{year}` — raw score JSON
+- `GET /history/{company_id}` — last 3 years trend
+- `GET /provider` — current provider + model name
+
+**Scoring dimensions (100 pts total):**
+- D1 碳排放强度 (28) · D2 能源结构清洁度 (17) · D3 减碳动态表现 (18)
+- D4 资源利用效率 (11) · D5 碳管理成熟度 (21) · D6 信息披露透明度 (5)
+
+**Known issues / gotchas:**
+- Run via `python3 -m uvicorn` not `uvicorn` (not on PATH)
+- Must open `http://localhost:8000` through server — opening HTML directly breaks API calls
+- MiniMax error 1008 = insufficient balance, top up account
+- Port conflict: `kill $(lsof -t -i:8000)` then restart
