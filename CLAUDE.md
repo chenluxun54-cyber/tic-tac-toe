@@ -97,13 +97,24 @@ FastAPI backend + streaming SSE chat UI. Single-file architecture (no bundler).
 - `GET /provider` — current provider + model name
 - `GET /policies` — list policies (optional: `?keyword=&industry=&jurisdiction=`)
 - `GET /policies/{policy_id}` — full policy detail
+- `POST /gap_analysis` — SSE streaming compliance gap analysis (body: `{company_id, report_year}`)
 
 **Policy Library tab (5th tab):**
-- Left panel (340px): search/filter toolbar + expandable policy cards
-- Each card lazy-fetches full details on first expand; shows 原文链接 (source URL) and per-example 来源 links
+- Left panel: 3-level navigation stack (Level 1: card list → Level 2: policy detail → Level 3: example detail)
+- Each level uses CSS `translateX` slide animation; policyCache dict avoids re-fetching on back navigation
 - Right panel: dedicated policy AI chatbox with its own session (separate from main AI Chat tab)
-- "向 AI 顾问提问" button on each card pre-fills and sends to the right-side chatbox
-- `policies.py` schema per policy: `id`, `name`, `jurisdiction`, `effective_date`, `category`, `source_url`, `summary`, `key_requirements`, `industries`, `compliance_examples` (with `example_url`), `tags`
+- `policies.py` schema per policy: `id`, `name`, `jurisdiction`, `effective_date`, `category`, `source_url`, `summary`, `key_requirements`, `industries`, `compliance_examples` (with `problem`, `action`, `result`, `example_url`), `tags`
+
+**Gap Analysis (Tab 1 — 评分概览):**
+- "📊 生成合规差距分析" button appears after querying a company
+- Calls `POST /gap_analysis` → stateless `gap_analysis_stream()` in `agent.py`
+- Claude receives score JSON directly (no carbon_score tool call needed), calls search_policies/get_policy_detail, streams 4-section Markdown report
+- Report sections: 📊总体评价 · ⚠️主要差距 (table) · 🗺️改进路线图 · 📜关键合规政策
+- SSE field is `content` (not `text`) — important for frontend handler
+
+**CSS layout gotcha (flex-shrink):**
+- `.tab-content.active` is `display: flex; flex-direction: column` — all direct children need `flex-shrink: 0` or they compress instead of triggering scroll
+- `.gap-content` uses `height: calc(100vh - 280px)` (not max-height) for reliable scrollbar
 
 **Scoring dimensions (100 pts total):**
 - D1 碳排放强度 (28) · D2 能源结构清洁度 (17) · D3 减碳动态表现 (18)
