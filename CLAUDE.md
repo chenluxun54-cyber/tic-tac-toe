@@ -125,3 +125,31 @@ FastAPI backend + streaming SSE chat UI. Single-file architecture (no bundler).
 - Must open `http://localhost:8000` through server — opening HTML directly breaks API calls
 - MiniMax error 1008 = insufficient balance, top up account
 - Port conflict: `kill $(lsof -t -i:8000)` then restart
+
+### 双碳表现 Excel Analysis (`~/Desktop/`)
+
+**Files:**
+- `双碳表现.xlsx` — source data: A股数据 sheet, 5,524 rows × 29 cols, A-share ESG metrics 2021–2024
+- `双碳分析.py` — analysis script (pandas + statsmodels)
+- `双碳分析结果.xlsx` — output workbook (8 sheets)
+
+**Data cleaning steps (in order):**
+1. **Column normalisation** — `str.replace(r'\s+', ' ')` collapses embedded newlines in column headers
+2. **Fossil fuel text parsing** — `化石能源消耗量` cols are free-text; regex extracts first numeric token, rest → NaN
+3. **Force-numeric** — `pd.to_numeric(..., errors="coerce")` on all metric cols; unparseable → NaN
+4. **Derived cols** — `total_emissions = scope1 + scope2`; `fossil_share = fossil / (fossil + non_fossil)`, div-by-zero → NaN
+5. **No imputation** — missing values stay NaN; no mean/median fill
+6. **Per-analysis row filtering** — rows dropped only when both target variables are missing for that specific model (not globally)
+7. **Outlier handling (charts only)** — 99th-percentile cap on scatter plots for visual clarity; regression samples are unwinsorized
+
+**Column name gotcha:** raw headers contain `\n` — must use `.str.replace(r'\s+', ' ', regex=True)` not just `.str.strip()` before any column lookup.
+
+**Fossil col gotcha:** `find_cols(df, "化石能源消耗量")` also matches `非化石能源消耗量` (substring). Filter with `"非化石" not in c`.
+
+**Output sheets:** 1_清洗数据 · 2_描述统计 · 3_相关性矩阵 · 4_简单回归_2024 · 5_多元回归_2024 · 6_面板回归 · 7_行业分层回归 · 8_趋势图
+
+**Regression models:**
+- Simple OLS (2024): `GHG_intensity = β₀ + β₁·energy_intensity`
+- Multiple OLS (2024): adds clean energy ratio, fossil share, industry dummies
+- Panel FE (2021–2024): within-estimator (demeaned), HC1 robust SE
+- Industry-stratified OLS: top 10 industries by sample size
