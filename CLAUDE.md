@@ -211,4 +211,6 @@ asyncio.create_task(evaluate_and_log(user_message=user_message, recent_messages=
 
 **Authoritative file to read:** `bugs.md` — Claude Code 修 bug 时只读这个文件。
 
+**修复后标记约定（不删条目）：** 修完一个 bug 后，把该条目的 `- 修复状态: open` 改成 `- 修复状态: fixed [YYYY-MM-DD]`，不要删除整个条目。detector 在去重时会自动跳过 fixed 条目——若同一问题日后复现，会开新条目而非累加到已修复的旧条目上。
+
 **Deprecated (已删除):** `monitor.py` — 曾用 MiniMax 分析 `testing_log.md` 写 `USAGE_LOG.md` / `AGENT_JOURNAL.md`。因为 LLM 自评带偏差、且与 detector 并行写文件会互相打架，已删除。`USAGE_LOG.md` / `AGENT_JOURNAL.md` 是历史存档，不再更新，不作为修复依据。
