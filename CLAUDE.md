@@ -153,3 +153,40 @@ FastAPI backend + streaming SSE chat UI. Single-file architecture (no bundler).
 - Multiple OLS (2024): adds clean energy ratio, fossil share, industry dummies
 - Panel FE (2021–2024): within-estimator (demeaned), HC1 robust SE
 - Industry-stratified OLS: top 10 industries by sample size
+
+## Trace / behaviour capture (carbon-compliance-agent)
+
+轻量行为追踪层，用于记录前端点击、console 报错、请求失败，供 detector agent 分析 bug。
+
+**Files (`~/Desktop/carbon_skill/`):**
+- `trace_endpoint.py` — FastAPI router，暴露 3 个端点；事件追加写入 `trace.jsonl`
+- `trace-capture.js` — 浏览器 JS，自动拦截 click / console.error / uncaught error / fetch 非 2xx
+- `trace.jsonl` — 运行时落盘文件（不提交 git）
+
+**Integration pattern (已集成到 agent.py / index.html):**
+```python
+# agent.py
+from trace_endpoint import trace_router
+app.include_router(trace_router)
+
+@app.get("/trace-capture.js")
+async def serve_trace_js():
+    return FileResponse(Path(__file__).parent / "trace-capture.js", media_type="application/javascript")
+```
+```html
+<!-- index.html <head> -->
+<script src="/trace-capture.js"></script>
+```
+
+**SSE stream error convention** — fetch 拦截器只捕获请求发起时的失败，流读取中途报错需手动上报。在所有 `fetch + ReadableStream` 的 catch 分支里调用：
+```js
+if (window.__trace) window.__trace('stream_error', { message: String(err), name: err.name, context: 'main_chat' });
+```
+context 值：`main_chat` / `policy_chat` / `gap_analysis`
+
+**API endpoints:**
+- `POST /__trace` — 接收一条事件 JSON，服务端补 `ts` 后写入 trace.jsonl
+- `GET /__trace/recent?n=50` — 查看最近 n 条记录（调试用）
+- `DELETE /__trace` — 清空 trace.jsonl（每次新测试 session 前执行）
+
+**Event types:** `click` · `console_error` · `uncaught_error` · `unhandled_rejection` · `http_error` · `fetch_failed` · `stream_error`
