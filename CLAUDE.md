@@ -190,3 +190,25 @@ context 值：`main_chat` / `policy_chat` / `gap_analysis`
 - `DELETE /__trace` — 清空 trace.jsonl（每次新测试 session 前执行）
 
 **Event types:** `click` · `console_error` · `uncaught_error` · `unhandled_rejection` · `http_error` · `fetch_failed` · `stream_error`
+
+## Bug detection pipeline (carbon-compliance-agent)
+
+`detector.py` 是 bug 记录的唯一权威来源，由 Claude Haiku 独立判断，**与产品本身的 LLM 完全不共享 session**，避免自评偏差。
+
+**Files:**
+- `detector.py` — 独立判断者 agent；写入 `bugs.md`（新条目 or 累加复现次数）
+- `bugs.md` — Claude Code 读取的权威 bug 列表（不提交 git）
+
+**Integration (已集成到 agent.py):**
+```python
+from detector import evaluate_and_log
+
+# 在 agent_stream 里，每次 messages.append(user_message) 之后，fire-and-forget：
+_ctx = [{"role": m["role"], "content": m["content"]} for m in messages[-8:] if isinstance(m.get("content"), str)]
+asyncio.create_task(evaluate_and_log(user_message=user_message, recent_messages=_ctx))
+```
+两处插入点：calc sub-agent 路径和主对话路径，各一次，保证每条用户消息都被 evaluate。
+
+**Authoritative file to read:** `bugs.md` — Claude Code 修 bug 时只读这个文件。
+
+**Deprecated (已删除):** `monitor.py` — 曾用 MiniMax 分析 `testing_log.md` 写 `USAGE_LOG.md` / `AGENT_JOURNAL.md`。因为 LLM 自评带偏差、且与 detector 并行写文件会互相打架，已删除。`USAGE_LOG.md` / `AGENT_JOURNAL.md` 是历史存档，不再更新，不作为修复依据。
